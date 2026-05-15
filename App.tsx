@@ -1,133 +1,242 @@
 import React, { useState, useEffect } from 'react';
 import {
-  SafeAreaView,
-  StyleSheet,
+  View,
   Text,
   TouchableOpacity,
-  StatusBar,
+  StyleSheet,
   ActivityIndicator,
+  ScrollView,
   Alert,
 } from 'react-native';
 
-// Прямая ссылка на ваш JSON-файл с 40286 серверами
-const SERVERS_URL = 'https://raw.githubusercontent.com/DarkRoyalty/shnajder-vpn-configs/main/servers.json';
-
-interface Server {
-  id: string;
-  name: string;
-  url: string;
-  location: string;
-}
-
 const App = () => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [statusText, setStatusText] = useState('Готов к подключению');
-  const [servers, setServers] = useState<Server[]>([]);
-  const [currentServer, setCurrentServer] = useState<Server | null>(null);
+  const [servers, setServers] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState(false);
+  const [currentServer, setCurrentServer] = useState('');
+
+  // Загрузка серверов
+  const loadServers = async () => {
+    try {
+      setLoading(true);
+      
+      // Используем jsDelivr CDN (стабильнее)
+      const response = await fetch(
+        'https://cdn.jsdelivr.net/gh/DarkRoyalty/shnajder-vpn-configs/servers.json',
+        {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          // Таймаут 15 секунд
+          signal: AbortSignal.timeout(15000),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Определяем структуру JSON
+      let serverList: string[] = [];
+      if (Array.isArray(data)) {
+        serverList = data;
+      } else if (data.servers && Array.isArray(data.servers)) {
+        serverList = data.servers;
+      } else {
+        throw new Error('Invalid JSON structure');
+      }
+
+      if (serverList.length === 0) {
+        throw new Error('No servers found');
+      }
+
+      // Ограничиваем до 500 серверов (для скорости)
+      const limitedServers = serverList.slice(0, 500);
+      setServers(limitedServers);
+      
+      console.log(`Loaded ${limitedServers.length} servers`);
+    } catch (error) {
+      console.error('Load error:', error);
+      Alert.alert(
+        'Ошибка загрузки',
+        'Не удалось загрузить сервера. Проверьте интернет.',
+        [{ text: 'OK' }]
+      );
+      // Тестовые сервера для отладки
+      setServers([
+        'vless://test1@example.com:443',
+        'vless://test2@example.com:443',
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Подключение к VPN (заглушка, потом заменим)
+  const connectToVPN = async (server: string) => {
+    setCurrentServer(server.substring(0, 50) + '...');
+    setConnected(true);
+    Alert.alert('Подключено', `Сервер: ${server.substring(0, 50)}`);
+    // TODO: реальное подключение через нативный модуль
+  };
+
+  const disconnect = () => {
+    setConnected(false);
+    setCurrentServer('');
+    Alert.alert('Отключено', 'VPN отключен');
+  };
+
+  // Выбор случайного сервера
+  const connectRandom = () => {
+    if (servers.length === 0) {
+      Alert.alert('Ошибка', 'Нет доступных серверов');
+      return;
+    }
+    const randomIndex = Math.floor(Math.random() * servers.length);
+    connectToVPN(servers[randomIndex]);
+  };
 
   useEffect(() => {
     loadServers();
   }, []);
 
-  const loadServers = async () => {
-    setStatusText('🔄 Загрузка серверов...');
-    try {
-      const response = await fetch(SERVERS_URL);
-      const data = await response.json();
-      
-      const serverList: Server[] = data.servers.map((url: string, index: number) => {
-        let name = `Сервер ${index + 1}`;
-        const hashIndex = url.indexOf('#');
-        if (hashIndex !== -1) {
-          const decoded = decodeURIComponent(url.substring(hashIndex + 1));
-          const match = decoded.match(/CA-\d+/);
-          if (match) name = match[0];
-        }
-        return {
-          id: `${index}`,
-          name: name,
-          url: url,
-          location: 'VPN Server',
-        };
-      });
-      
-      setServers(serverList);
-      setStatusText(`✅ Загружено ${serverList.length} серверов`);
-    } catch (error) {
-      console.error('Ошибка:', error);
-      setStatusText('❌ Ошибка загрузки серверов');
-      Alert.alert('Ошибка', 'Не удалось загрузить список серверов');
-    }
-  };
-
-  const connectVPN = async () => {
-    if (servers.length === 0) {
-      Alert.alert('Ошибка', 'Нет доступных серверов');
-      return;
-    }
-
-    setIsLoading(true);
-    setStatusText('🔄 Подключение...');
-
-    try {
-      const server = servers[0];
-      setCurrentServer(server);
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setIsConnected(true);
-      setStatusText(`✅ Подключено (${server.name})`);
-    } catch (error) {
-      setStatusText('❌ Ошибка подключения');
-      Alert.alert('Ошибка', 'Не удалось подключиться');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const disconnectVPN = async () => {
-    setIsLoading(true);
-    setStatusText('⏹️ Отключение...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsConnected(false);
-    setStatusText('Готов к подключению');
-    setCurrentServer(null);
-    setIsLoading(false);
-  };
-
-  const handlePress = () => {
-    if (isConnected) disconnectVPN();
-    else connectVPN();
-  };
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Загрузка серверов...</Text>
+        <Text style={styles.smallText}>Это может занять до 10 секунд</Text>
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a1a2e" />
-      <Text style={styles.title}>One Button VPN</Text>
-      {currentServer && <Text style={styles.serverInfo}>Сервер: {currentServer.name}</Text>}
-      <Text style={styles.statusText}>{statusText}</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.title}>MyVPN</Text>
+      <Text style={styles.subtitle}>Одна кнопка — безопасный интернет</Text>
+
+      <View style={styles.statsContainer}>
+        <Text style={styles.statsText}>
+          📡 Серверов: {servers.length}
+        </Text>
+        <Text style={styles.statsText}>
+          🔒 Статус: {connected ? 'Подключено' : 'Отключено'}
+        </Text>
+        {connected && (
+          <Text style={styles.serverInfo}>
+            🌐 {currentServer}
+          </Text>
+        )}
+      </View>
+
       <TouchableOpacity
-        style={[styles.button, isConnected ? styles.buttonConnected : styles.buttonDisconnected, isLoading && styles.buttonLoading]}
-        onPress={handlePress}
-        disabled={isLoading}
-        activeOpacity={0.8}>
-        {isLoading ? <ActivityIndicator size="large" color="#ffffff" /> : <Text style={styles.buttonText}>{isConnected ? 'ОТКЛЮЧИТЬСЯ' : 'ПОДКЛЮЧИТЬСЯ'}</Text>}
+        style={[styles.button, connected && styles.buttonDisconnect]}
+        onPress={connected ? disconnect : connectRandom}
+      >
+        <Text style={styles.buttonText}>
+          {connected ? 'ОТКЛЮЧИТЬ' : 'ПОДКЛЮЧИТЬСЯ'}
+        </Text>
       </TouchableOpacity>
-      <Text style={styles.footer}>🔒 Серверов: {servers.length}</Text>
-    </SafeAreaView>
+
+      <TouchableOpacity style={styles.refreshButton} onPress={loadServers}>
+        <Text style={styles.refreshText}>🔄 Обновить сервера</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.footer}>
+        Случайный сервер из {servers.length} доступных
+      </Text>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1a1a2e' },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#ffffff', marginBottom: 20 },
-  serverInfo: { fontSize: 14, color: '#4CAF50', marginBottom: 20 },
-  statusText: { fontSize: 18, color: '#aaaaaa', marginBottom: 50, textAlign: 'center' },
-  button: { width: 180, height: 180, borderRadius: 90, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
-  buttonDisconnected: { backgroundColor: '#4CAF50' },
-  buttonConnected: { backgroundColor: '#F44336' },
-  buttonLoading: { backgroundColor: '#666666' },
-  buttonText: { color: '#ffffff', fontSize: 20, fontWeight: 'bold' },
-  footer: { position: 'absolute', bottom: 30, fontSize: 12, color: '#666666' },
+  container: {
+    flexGrow: 1,
+    backgroundColor: '#0a0a0a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  centerContainer: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#007AFF',
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#888',
+    marginBottom: 40,
+  },
+  statsContainer: {
+    backgroundColor: '#1a1a1a',
+    padding: 20,
+    borderRadius: 15,
+    width: '100%',
+    marginBottom: 30,
+  },
+  statsText: {
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  serverInfo: {
+    color: '#4CD964',
+    fontSize: 12,
+    marginTop: 8,
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 18,
+    paddingHorizontal: 40,
+    borderRadius: 30,
+    width: '80%',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  buttonDisconnect: {
+    backgroundColor: '#FF3B30',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  refreshButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 25,
+    backgroundColor: '#2a2a2a',
+  },
+  refreshText: {
+    color: '#007AFF',
+    fontSize: 14,
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 18,
+    marginTop: 20,
+  },
+  smallText: {
+    color: '#888',
+    fontSize: 12,
+    marginTop: 10,
+  },
+  footer: {
+    color: '#555',
+    fontSize: 12,
+    marginTop: 40,
+    textAlign: 'center',
+  },
 });
 
 export default App;
