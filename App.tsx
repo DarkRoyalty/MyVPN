@@ -9,7 +9,6 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import MyVpnModule from './native-modules/MyVpnModule';
 
 const App = () => {
   const [servers, setServers] = useState<string[]>([]);
@@ -17,52 +16,35 @@ const App = () => {
   const [connected, setConnected] = useState(false);
   const [currentServer, setCurrentServer] = useState('');
 
-  // Загрузка серверов
   const loadServers = async () => {
     try {
       setLoading(true);
-      
       const response = await fetch(
         'https://raw.githubusercontent.com/DarkRoyalty/shnajder-vpn-configs/main/servers.json',
         { signal: AbortSignal.timeout(15000) }
       );
-
       const data = await response.json();
       let serverList = Array.isArray(data) ? data : data.servers || [];
       const vlessServers = serverList.filter(s => s?.startsWith?.('vless://'));
-      
-      if (vlessServers.length === 0) throw new Error('No servers');
-      
       setServers(vlessServers.slice(0, 200));
       Alert.alert('✅ Успех', `Загружено ${vlessServers.length} серверов`);
     } catch (error) {
       Alert.alert('❌ Ошибка', 'Не удалось загрузить сервера');
-      setServers(['vless://test@example.com:443']);
     } finally {
       setLoading(false);
     }
   };
 
-  const connectToVPN = async (server: string) => {
-    try {
-      const result = await MyVpnModule.connect(server);
-      if (result === 'REQUEST_PERMISSION') {
-        Alert.alert('Разрешение', 'Разрешите VPN в следующем окне');
-        return;
-      }
-      setConnected(true);
-      setCurrentServer(server.substring(0, 50));
-      Alert.alert('✅ Подключено', 'VPN активен');
-    } catch (error) {
-      Alert.alert('❌ Ошибка', String(error));
-    }
+  const connectToVPN = (server: string) => {
+    setConnected(true);
+    setCurrentServer(server.substring(0, 50));
+    Alert.alert('✅ Демо', 'VPN подключение будет работать в следующей версии');
   };
 
-  const disconnect = async () => {
-    await MyVpnModule.disconnect();
+  const disconnect = () => {
     setConnected(false);
     setCurrentServer('');
-    Alert.alert('✅ Отключено', 'VPN отключен');
+    Alert.alert('✅ Демо', 'VPN отключен');
   };
 
   useEffect(() => { loadServers(); }, []);
@@ -105,19 +87,8 @@ const App = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    backgroundColor: '#0a0a0a',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  centerContainer: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  container: { flexGrow: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  centerContainer: { flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 32, fontWeight: 'bold', color: '#007AFF', marginBottom: 10 },
   subtitle: { fontSize: 16, color: '#888', marginBottom: 40 },
   statsContainer: { backgroundColor: '#1a1a1a', padding: 20, borderRadius: 15, width: '100%', marginBottom: 30 },
