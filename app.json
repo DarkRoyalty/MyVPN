@@ -13,7 +13,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "ycom.art412.myvpn"
     },
     "android": {
       "adaptiveIcon": {
@@ -31,6 +32,9 @@
       "eas": {
         "projectId": "0eb39019-ed91-4802-82dc-4505fdbe3a20"
       }
-    }
+    },
+    "plugins": [
+      "expo-build-properties"
+    ]
   }
 }
