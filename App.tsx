@@ -9,8 +9,8 @@ import {
   Alert,
 } from 'react-native';
 
-// ⚠️ ВАЖНО: ЗАМЕНИТЕ ЭТУ ССЫЛКУ НА ВАШУ
-const SERVERS_URL = 'https://raw.githubusercontent.com/DarkRoyalty/shnajder-vpn-configs/main/vless-configs/servers.json';
+// Базовый URL для ваших конфигов
+const BASE_URL = 'https://raw.githubusercontent.com/DarkRoyalty/shnajder-vpn-configs/main/githubmirror/';
 
 interface Server {
   id: string;
@@ -26,25 +26,56 @@ const App = () => {
   const [servers, setServers] = useState<Server[]>([]);
   const [currentServer, setCurrentServer] = useState<Server | null>(null);
 
+  // Загрузка всех 26 файлов с серверами
   useEffect(() => {
-    loadServers();
+    loadAllServers();
   }, []);
 
-  const loadServers = async () => {
-    try {
-      const response = await fetch(SERVERS_URL);
-      const data = await response.json();
-      setServers(data.servers);
-      console.log('Загружено серверов:', data.servers.length);
-    } catch (error) {
-      console.error('Ошибка загрузки серверов:', error);
-      Alert.alert('Ошибка', 'Не удалось загрузить список серверов');
+  const loadAllServers = async () => {
+    setStatusText('🔄 Загрузка серверов...');
+    const allServers: Server[] = [];
+    
+    for (let i = 1; i <= 26; i++) {
+      try {
+        const url = `${BASE_URL}${i}.txt`;
+        const response = await fetch(url);
+        const content = await response.text();
+        
+        // Парсим VLESS ссылки из файла
+        const lines = content.split('\n');
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('vless://') || trimmed.startsWith('trojan://') || trimmed.startsWith('vmess://')) {
+            // Извлекаем название из ссылки (после #)
+            let name = `Сервер ${i}`;
+            const hashIndex = trimmed.indexOf('#');
+            if (hashIndex !== -1) {
+              name = decodeURIComponent(trimmed.substring(hashIndex + 1)).replace(/[^\w\sА-Яа-я-]/g, '');
+              if (name.length > 30) name = name.substring(0, 30);
+            }
+            
+            allServers.push({
+              id: `${i}-${allServers.length}`,
+              name: name,
+              url: trimmed,
+              location: `Сервер ${i}`,
+            });
+          }
+        }
+        console.log(`Загружено из ${i}.txt: ${lines.length} строк`);
+      } catch (error) {
+        console.error(`Ошибка загрузки ${i}.txt:`, error);
+      }
     }
+    
+    setServers(allServers);
+    setStatusText(`✅ Загружено ${allServers.length} серверов`);
+    console.log('Всего серверов:', allServers.length);
   };
 
   const connectVPN = async () => {
-    if (!servers.length) {
-      Alert.alert('Ошибка', 'Нет доступных серверов');
+    if (servers.length === 0) {
+      Alert.alert('Ошибка', 'Нет доступных серверов. Проверьте интернет.');
       return;
     }
 
@@ -52,15 +83,16 @@ const App = () => {
     setStatusText('🔄 Подключение к серверу...');
 
     try {
+      // Берём первый сервер из списка
       const server = servers[0];
       setCurrentServer(server);
       
-      // Здесь будет реальное VPN подключение
+      // TODO: Здесь будет реальное VPN подключение через react-native-vpn
       // Пока имитируем подключение
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       setIsConnected(true);
-      setStatusText(`✅ Подключено (${server.location})`);
+      setStatusText(`✅ Подключено (${server.name})`);
     } catch (error) {
       console.error('VPN ошибка:', error);
       setStatusText('❌ Ошибка подключения');
@@ -102,7 +134,7 @@ const App = () => {
 
       {currentServer && (
         <Text style={styles.serverInfo}>
-          Сервер: {currentServer.location}
+          Сервер: {currentServer.name}
         </Text>
       )}
 
@@ -128,7 +160,7 @@ const App = () => {
       </TouchableOpacity>
 
       <Text style={styles.footer}>
-        🔒 Ваше подключение защищено
+        🔒 Всего серверов: {servers.length}
       </Text>
     </SafeAreaView>
   );
