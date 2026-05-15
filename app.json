@@ -14,9 +14,6 @@
       "package": "com.myvpn.app",
       "permissions": ["android.permission.INTERNET"]
     },
-    "plugins": [
-      "./plugins/withMyVpn.js"
-    ],
     "extra": {
       "eas": {
         "projectId": "0eb39019-ed91-4802-82dc-4505fdbe3a20"
