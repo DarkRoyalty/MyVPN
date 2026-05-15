@@ -9,6 +9,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import MyVpnModule from './modules/my-vpn';
 
 const App = () => {
   const [servers, setServers] = useState<string[]>([]);
@@ -21,7 +22,6 @@ const App = () => {
     try {
       setLoading(true);
       
-      // Используем jsDelivr CDN (стабильнее)
       const response = await fetch(
         'https://cdn.jsdelivr.net/gh/DarkRoyalty/shnajder-vpn-configs/servers.json',
         {
@@ -29,7 +29,6 @@ const App = () => {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
           },
-          // Таймаут 15 секунд
           signal: AbortSignal.timeout(15000),
         }
       );
@@ -40,7 +39,6 @@ const App = () => {
 
       const data = await response.json();
       
-      // Определяем структуру JSON
       let serverList: string[] = [];
       if (Array.isArray(data)) {
         serverList = data;
@@ -54,7 +52,6 @@ const App = () => {
         throw new Error('No servers found');
       }
 
-      // Ограничиваем до 500 серверов (для скорости)
       const limitedServers = serverList.slice(0, 500);
       setServers(limitedServers);
       
@@ -66,7 +63,6 @@ const App = () => {
         'Не удалось загрузить сервера. Проверьте интернет.',
         [{ text: 'OK' }]
       );
-      // Тестовые сервера для отладки
       setServers([
         'vless://test1@example.com:443',
         'vless://test2@example.com:443',
@@ -76,18 +72,35 @@ const App = () => {
     }
   };
 
-  // Подключение к VPN (заглушка, потом заменим)
+  // Подключение к VPN
   const connectToVPN = async (server: string) => {
-    setCurrentServer(server.substring(0, 50) + '...');
-    setConnected(true);
-    Alert.alert('Подключено', `Сервер: ${server.substring(0, 50)}`);
-    // TODO: реальное подключение через нативный модуль
+    try {
+      const result = await MyVpnModule.connect(server);
+      if (result === 'REQUEST_PERMISSION') {
+        Alert.alert(
+          'Требуется разрешение',
+          'Разрешите VPN-подключение в следующем окне'
+        );
+        return;
+      }
+      setConnected(true);
+      setCurrentServer(server.substring(0, 50) + '...');
+      Alert.alert('Подключено', 'VPN активен');
+    } catch (error) {
+      Alert.alert('Ошибка', 'Не удалось подключиться');
+      console.error(error);
+    }
   };
 
-  const disconnect = () => {
-    setConnected(false);
-    setCurrentServer('');
-    Alert.alert('Отключено', 'VPN отключен');
+  const disconnect = async () => {
+    try {
+      await MyVpnModule.disconnect();
+      setConnected(false);
+      setCurrentServer('');
+      Alert.alert('Отключено', 'VPN отключен');
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   // Выбор случайного сервера
